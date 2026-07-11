@@ -2,7 +2,10 @@ module github.com/alessmar/lambda-pic-scaler
 
 go 1.27.4
 
-require github.com/go-playground/validator/v10 v10.30.6
+require (
+	github.com/davidbyttow/govips/v2 v2.20.0
+	github.com/go-playground/validator/v10 v10.30.6
+)
 
 require (
 	github.com/gabriel-vasile/mimetype v1.4.16 // indirect
@@ -10,6 +13,8 @@ require (
 	github.com/go-playground/universal-translator v0.18.2 // indirect
 	github.com/leodido/go-urn v1.5.0 // indirect
 	golang.org/x/crypto v0.58.0 // indirect
+	golang.org/x/image v0.41.0 // indirect
+	golang.org/x/net v0.60.0 // indirect
 	golang.org/x/sys v0.49.0 // indirect
 	golang.org/x/text v0.43.0 // indirect
 )
