@@ -3,6 +3,7 @@ module github.com/alessmar/lambda-pic-scaler
 go 1.27.4
 
 require (
+	github.com/aws/aws-lambda-go v1.55.1
 	github.com/davidbyttow/govips/v2 v2.20.0
 	github.com/go-playground/validator/v10 v10.30.6
 )
