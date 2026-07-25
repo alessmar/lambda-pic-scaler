@@ -1,0 +1,21 @@
+name: test
+
+on:
+  push:
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-go@v6
+        with:
+          go-version-file: go.mod
+      # Loop guards and parsing: no libvips needed.
+      - run: go test ./scaler ./internal/app
+      - run: ./test/deploy_test.sh
+      - run: shellcheck deploy.sh test/deploy_test.sh
