@@ -1,0 +1,42 @@
+name: deploy
+
+on:
+  workflow_dispatch:
+    inputs:
+      bucket_name:
+        description: Existing S3 bucket with the images
+        required: true
+      alarm_email:
+        description: Email that receives the alarms
+        required: true
+      key_prefix:
+        description: Optional key prefix to watch (for example photos/)
+        required: false
+        default: ""
+
+permissions:
+  id-token: write # OIDC, no stored AWS keys
+  contents: read
+
+concurrency: deploy
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    env:
+      BUCKET_NAME: ${{ inputs.bucket_name }}
+      ALARM_EMAIL: ${{ inputs.alarm_email }}
+      KEY_PREFIX: ${{ inputs.key_prefix }}
+    steps:
+      - uses: actions/checkout@v6
+      - uses: aws-actions/configure-aws-credentials@v6
+        with:
+          role-to-assume: ${{ vars.AWS_ROLE_ARN }}
+          aws-region: ${{ vars.AWS_REGION }}
+      - name: "Phase 1: ECR stack"
+        run: ./deploy.sh ecr
+      - name: "Phase 2: build and push the image"
+        run: ./deploy.sh image
+      - name: "Phase 3: Lambda stack"
+        run: ./deploy.sh app

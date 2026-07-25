@@ -1,0 +1,157 @@
+AWSTemplateFormatVersion: "2010-09-09"
+Description: One-time setup - lets a GitHub Actions workflow of one repository deploy lambda-pic-scaler, with no stored AWS keys.
+
+Parameters:
+  NamePrefix:
+    Type: String
+    Default: lambda-pic-scaler
+    AllowedPattern: "^[a-z][a-z0-9-]{0,29}$"
+    Description: Must match the NamePrefix the pipeline deploys with.
+  GitHubRepo:
+    Type: String
+    AllowedPattern: "^[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+$"
+    Description: Repository allowed to assume the role, as owner/name (your fork).
+  GitHubBranch:
+    Type: String
+    Default: main
+    Description: Only workflows running on this branch can assume the role.
+  BucketName:
+    Type: String
+    Description: The existing bucket the pipeline may turn EventBridge notifications on for.
+  CreateOidcProvider:
+    Type: String
+    Default: "true"
+    AllowedValues: ["true", "false"]
+    Description: Set to false if this account already has the GitHub OIDC provider (only one is allowed per account).
+
+Conditions:
+  CreateProvider: !Equals [!Ref CreateOidcProvider, "true"]
+
+Resources:
+  GitHubProvider:
+    Type: AWS::IAM::OIDCProvider
+    Condition: CreateProvider
+    Properties:
+      Url: https://token.actions.githubusercontent.com
+      ClientIdList: [sts.amazonaws.com]
+
+  DeployRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: !Sub "${NamePrefix}-github-deploy-role"
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: Allow
+            Principal:
+              Federated: !If
+                - CreateProvider
+                - !Ref GitHubProvider
+                - !Sub "arn:aws:iam::${AWS::AccountId}:oidc-provider/token.actions.githubusercontent.com"
+            Action: sts:AssumeRoleWithWebIdentity
+            Condition:
+              StringEquals:
+                "token.actions.githubusercontent.com:aud": sts.amazonaws.com
+                "token.actions.githubusercontent.com:sub": !Sub "repo:${GitHubRepo}:ref:refs/heads/${GitHubBranch}"
+      Policies:
+        - PolicyName: deploy
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              # Exact stack and role names, never prefix wildcards: the deploy role must not be able to
+              # change its own role or stack, which would let it grant itself more access.
+              - Effect: Allow
+                Action:
+                  - cloudformation:CreateStack
+                  - cloudformation:UpdateStack
+                  - cloudformation:DeleteStack
+                  - cloudformation:DescribeStacks
+                  - cloudformation:DescribeStackEvents
+                  - cloudformation:CreateChangeSet
+                  - cloudformation:DescribeChangeSet
+                  - cloudformation:ExecuteChangeSet
+                  - cloudformation:DeleteChangeSet
+                  - cloudformation:GetTemplate
+                Resource:
+                  - !Sub "arn:aws:cloudformation:${AWS::Region}:${AWS::AccountId}:stack/${NamePrefix}-ecr/*"
+                  - !Sub "arn:aws:cloudformation:${AWS::Region}:${AWS::AccountId}:stack/${NamePrefix}-app/*"
+              - Effect: Allow
+                Action: cloudformation:CreateChangeSet
+                Resource: !Sub "arn:aws:cloudformation:${AWS::Region}:aws:transform/Serverless-2016-10-31"
+              - Effect: Allow
+                Action: [ecr:GetAuthorizationToken, cloudwatch:DescribeAlarms, logs:DescribeLogGroups]
+                Resource: "*"
+              - Effect: Allow
+                Action: ecr:*
+                Resource: !Sub "arn:aws:ecr:${AWS::Region}:${AWS::AccountId}:repository/${NamePrefix}-*"
+              - Effect: Allow
+                Action: lambda:*
+                Resource: !Sub "arn:aws:lambda:${AWS::Region}:${AWS::AccountId}:function:${NamePrefix}-*"
+              - Effect: Allow
+                Action:
+                  - iam:CreateRole
+                  - iam:DeleteRole
+                  - iam:GetRole
+                  - iam:PassRole
+                  - iam:TagRole
+                  - iam:UntagRole
+                  - iam:UpdateAssumeRolePolicy
+                  - iam:PutRolePolicy
+                  - iam:GetRolePolicy
+                  - iam:DeleteRolePolicy
+                  - iam:ListRolePolicies
+                  - iam:ListAttachedRolePolicies
+                  - iam:DetachRolePolicy
+                Resource: !Sub "arn:aws:iam::${AWS::AccountId}:role/${NamePrefix}-resizer-role"
+              - Effect: Allow
+                Action: iam:AttachRolePolicy
+                Resource: !Sub "arn:aws:iam::${AWS::AccountId}:role/${NamePrefix}-resizer-role"
+                Condition:
+                  ArnEquals:
+                    iam:PolicyARN: arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole
+              - Effect: Allow
+                Action: sqs:*
+                Resource: !Sub "arn:aws:sqs:${AWS::Region}:${AWS::AccountId}:${NamePrefix}-*"
+              - Effect: Allow
+                Action: sns:*
+                Resource: !Sub "arn:aws:sns:${AWS::Region}:${AWS::AccountId}:${NamePrefix}-*"
+              - Effect: Allow
+                Action:
+                  - events:PutRule
+                  - events:DeleteRule
+                  - events:DescribeRule
+                  - events:PutTargets
+                  - events:RemoveTargets
+                  - events:ListTargetsByRule
+                  - events:TagResource
+                  - events:UntagResource
+                  - events:ListTagsForResource
+                Resource: !Sub "arn:aws:events:${AWS::Region}:${AWS::AccountId}:rule/${NamePrefix}-*"
+              - Effect: Allow
+                Action:
+                  - logs:CreateLogGroup
+                  - logs:DeleteLogGroup
+                  - logs:PutRetentionPolicy
+                  - logs:DeleteRetentionPolicy
+                  - logs:TagResource
+                  - logs:UntagResource
+                  - logs:ListTagsForResource
+                Resource:
+                  - !Sub "arn:aws:logs:${AWS::Region}:${AWS::AccountId}:log-group:/aws/lambda/${NamePrefix}-*"
+                  - !Sub "arn:aws:logs:${AWS::Region}:${AWS::AccountId}:log-group:/aws/lambda/${NamePrefix}-*:*"
+              - Effect: Allow
+                Action:
+                  - cloudwatch:PutMetricAlarm
+                  - cloudwatch:DeleteAlarms
+                  - cloudwatch:TagResource
+                  - cloudwatch:UntagResource
+                  - cloudwatch:ListTagsForResource
+                Resource: !Sub "arn:aws:cloudwatch:${AWS::Region}:${AWS::AccountId}:alarm:${NamePrefix}-*"
+              - Effect: Allow
+                Action: [s3:GetBucketNotification, s3:PutBucketNotification]
+                Resource: !Sub "arn:aws:s3:::${BucketName}"
+
+Outputs:
+  RoleArn:
+    Description: Put this in the repository variable AWS_ROLE_ARN.
+    Value: !GetAtt DeployRole.Arn
