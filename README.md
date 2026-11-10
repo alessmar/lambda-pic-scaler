@@ -1,12 +1,8 @@
 # lambda-pic-scaler
 
-[![test](https://github.com/alessmar/lambda-pic-scaler/actions/workflows/test.yml/badge.svg)](https://github.com/alessmar/lambda-pic-scaler/actions/workflows/test.yml)
+[![test](https://github.com/alessmar/lambda-pic-scaler/actions/workflows/test.yml/badge.svg?branch=main)](https://github.com/alessmar/lambda-pic-scaler/actions/workflows/test.yml)
 [![License: MIT](https://img.shields.io/github/license/alessmar/lambda-pic-scaler)](LICENSE)
 [![Go version](https://img.shields.io/github/go-mod/go-version/alessmar/lambda-pic-scaler)](go.mod)
-[![Last commit](https://img.shields.io/github/last-commit/alessmar/lambda-pic-scaler)](https://github.com/alessmar/lambda-pic-scaler/commits/main)
-![AWS Lambda](https://img.shields.io/badge/AWS-Lambda-FF9900?logo=amazonaws&logoColor=white)
-![CloudFormation](https://img.shields.io/badge/IaC-CloudFormation-E7157B?logo=amazonaws&logoColor=white)
-![libvips](https://img.shields.io/badge/image%20processing-libvips-1F6FEB)
 
 A Go-based AWS Lambda function for resizing images on the fly, designed for serverless image processing in cloud applications
 
