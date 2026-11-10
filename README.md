@@ -4,7 +4,7 @@
 [![License: MIT](https://img.shields.io/github/license/alessmar/lambda-pic-scaler)](LICENSE)
 [![Go version](https://img.shields.io/github/go-mod/go-version/alessmar/lambda-pic-scaler)](go.mod)
 
-A Go-based AWS Lambda function for resizing images on the fly, designed for serverless image processing in cloud applications
+An AWS Lambda written in Go that resizes images uploaded to S3, following the instructions stored in each object's metadata.
 
 ## Why this project
 
@@ -18,7 +18,9 @@ I still thought it would be nice to rewrite it in Go and make it declarative: in
 2. S3 sends an "Object Created" event to EventBridge, which invokes the Lambda.
 3. The Lambda reads the metadata with `HeadObject`, resizes the image with `libvips` and writes one copy per entry next to the original.
 
-> **Cost of reading the metadata:** the `HeadObject` request in step 3 is billed by S3 like a GET request, about $0.0004 per 1,000 in US East (S3 Standard), which is **$1 for every 2.5 million images checked**. Every object that lands in the bucket is checked once, resized copies included (they are skipped right after the check), so one upload with 3 sizes means 4 checks. Prices vary by region and change over time, so check yours.
+> **Cost of reading the metadata:** the `HeadObject` request in step 3 is billed by S3 like a GET request, about $0.0004 per 1,000 in US East (S3 Standard), which is **$1 for every 2.5 million images checked**. Every object that lands in the bucket (under `KeyPrefix`, if you set one) is checked once, resized copies included (they are skipped right after the check), so one upload with 3 sizes means 4 checks. Prices vary by region and change over time, so check yours.
+
+![Architecture of lambda-pic-scaler: an upload to S3 triggers EventBridge, which invokes the Lambda that writes the resized copies back to the bucket](diagrams/architecture.png)
 
 The metadata is a JSON array (max 10 entries):
 
@@ -51,6 +53,13 @@ The outputs land in the bucket that triggers the Lambda, so a mistake here would
 - The function has a reserved concurrency cap (`MaxConcurrency`) that bounds the spend rate whatever happens, and an alarm fires when invocations exceed `InvocationsAlarmThreshold` per 5 minutes.
 
 `internal/app/app_test.go` simulates a bucket that emits an event for every write, like S3 does, and fails if one upload costs more than 1 + N invocations. Run it with `go test ./internal/app`.
+
+## How it was built
+
+I built this project with the help of Claude Code, and I reviewed its work carefully before committing it.
+
+The architecture is my design: the resize instructions travel with each image as S3 metadata, EventBridge triggers the Lambda, and several guards prevent processing loops.
+The key dependencies are my choice too: `libvips` (through `govips`) for resizing, and `go-playground/validator` to validate the instructions declaratively.
 
 ## Deploy
 
